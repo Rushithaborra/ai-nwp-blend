@@ -55,6 +55,18 @@ parser if you ask for a mixed range in one call. The in-progress year will
 keep failing (logged, not fatal) until IMD publishes the finished grid, or
 until you swap in a real-time product (e.g. IMERG) for recent months.
 
+**Hackathon prototype window:** with a 3-day submission deadline, the full
+18-month backfill above (5-8+ days at observed download speed, mostly
+ECMWF throttling) isn't viable. Use a focused window instead - enough days
+to compute rolling error weights and find one real case-study day, without
+blocking the deadline:
+
+```bash
+python run_all.py --source noaa   --start 2025-07-01 --end 2025-07-31
+python run_all.py --source ecmwf  --start 2025-07-01 --end 2025-07-31
+python run_all.py --source regime --start 2025-07-01 --end 2025-07-31
+```
+
 Raw data (`data/`) and logs (`logs/`) are gitignored — they're large (10-15 GB for the full run) and regenerable from the scripts above, so they aren't pushed to the repo. Run the smoke test to get a few sample `.nc` files locally before writing blending code against them.
 
 ## Blending
@@ -67,7 +79,11 @@ this); `weights.py` has tier 1 (equal-weight) and tier 2 (inverse-error);
 height - fit only once enough dates exist, never on observed regimes);
 `metrics.py` has RMSE, bias, ETS, and FSS. See
 `notebooks/01_smoke_test_blend.py` for a working end-to-end example on the
-smoke-test date. Tier 4 (meta-learner) and CRPS-based extreme calibration
+smoke-test date (run notebook scripts as `PYTHONPATH=. python
+notebooks/<script>.py` from the repo root, so `import blend` resolves).
+`notebooks/02_find_case_study_days.py` picks candidate extreme-rainfall
+days from IMD data alone - **2025-07-26** stood out (209 grid cells over
+IMD's 64.5mm heavy-rain threshold, most of any July 2025 day). Tier 4 (meta-learner) and CRPS-based extreme calibration
 come after the bulk download gives enough history to train on.
 
 ## Fixed scope
