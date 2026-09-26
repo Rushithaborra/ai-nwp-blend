@@ -1,0 +1,54 @@
+# AI-NWP Blend (SIH 26081)
+
+Hybrid AI + numerical-weather-prediction (NWP) rainfall/weather blending prototype for the India region (lat 40-5N, lon 65-100E).
+
+## Why
+
+Physics-based NWP models and newer AI weather models each have different strengths. This project pulls forecasts from both kinds of model plus two ground-truth sources, and blends them into a single forecast that should beat either family alone over India.
+
+## Data sources
+
+| Source | Type | Role |
+|---|---|---|
+| GFS (NOAA) | Physics-based | Baseline global forecast |
+| GraphCastGFS | AI (on GFS init conditions) | AI counterpart to GFS |
+| ECMWF IFS | Physics-based | Second, stronger physics baseline |
+| ECMWF AIFS | AI (on IFS init conditions) | AI counterpart to IFS |
+| ERA5 (CDS) | Reanalysis | Historical "ground truth" for training/validation |
+| IMD gridded | Observation | India-specific ground truth for scoring |
+
+## Setup
+
+```bash
+conda create -n sih -c conda-forge python=3.11 xarray netcdf4 cfgrib eccodes \
+      herbie-data ecmwf-opendata cdsapi pandas -y
+conda activate sih
+pip install imdlib
+python -c "import cfgrib, herbie, ecmwf.opendata, cdsapi, imdlib; print('all good')"
+```
+
+ERA5 needs a free Copernicus CDS account + a `~/.cdsapirc` file (not committed — see `.gitignore`):
+
+```
+url: https://cds.climate.copernicus.eu/api
+key: <your-token>
+```
+
+## Usage
+
+```bash
+# smoke test: one date per source
+python download_data.py
+
+# bulk download per source, skips files that already exist, logs failures to logs/failed.txt
+python run_all.py --source noaa   --start 2025-03-01 --end 2026-09-20
+python run_all.py --source ecmwf  --start 2025-03-01 --end 2026-09-20
+python run_all.py --source era5   --start 2025-03-01 --end 2026-09-20
+python run_all.py --source imd    --start 2025-03-01 --end 2026-09-20
+```
+
+Raw data (`data/`) and logs (`logs/`) are gitignored — they're large (10-15 GB for the full run) and regenerable from the scripts above, so they aren't pushed to the repo. Run the smoke test to get a few sample `.nc` files locally before writing blending code against them.
+
+## Fixed scope
+
+Do not change the India bounding box (`LAT_N, LAT_S, LON_W, LON_E` in [download_data.py](download_data.py)) or the step lists mid-project without discussing with the team — downstream blending code assumes this grid.

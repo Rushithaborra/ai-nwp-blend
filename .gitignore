@@ -1,0 +1,9 @@
+data/
+logs/
+*.nc
+*.grib2*
+.dist/
+__pycache__/
+*.pyc
+.DS_Store
+.cdsapirc
