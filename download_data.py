@@ -53,17 +53,27 @@ HERBIE_SEARCH = {
     "tp":   r":APCP:surface:0-[0-9]+ hour acc",
 }
 
+# Forecast-derived regime features (GFS only - shared GDAS init with
+# GraphCastGFS, used as the single regime reference for all 4 models so
+# weighting stays consistent across the IFS/AIFS branch too).
+REGIME_SEARCH = {
+    "u850": ":UGRD:850 mb",
+    "v850": ":VGRD:850 mb",
+    "z500": ":HGT:500 mb",
+}
 
-def get_noaa(date, model="gfs", steps=STEPS_6H):
+
+def get_noaa(date, model="gfs", steps=STEPS_6H, search=HERBIE_SEARCH,
+             out_name=None, skip_step0=("tp",)):
     from herbie import Herbie
     pieces = []
     for fxx in steps:
         H = Herbie(f"{date} 00:00", model=model, product="pgrb2.0p25", fxx=fxx)
-        for var, search in HERBIE_SEARCH.items():
-            if var == "tp" and fxx == 0:
+        for var, pattern in search.items():
+            if var in skip_step0 and fxx == 0:
                 continue
             try:
-                ds = H.xarray(search, remove_grib=True)
+                ds = H.xarray(pattern, remove_grib=True)
                 if isinstance(ds, list):
                     ds = ds[0]
                 ds = crop(ds)
@@ -75,7 +85,15 @@ def get_noaa(date, model="gfs", steps=STEPS_6H):
             except Exception as e:
                 print(f"[{model} {date} f{fxx:03d} {var}] missing: {e}")
     if pieces:
-        save(xr.merge(pieces), f"{model}_{date}.nc")
+        save(xr.merge(pieces), f"{out_name or model}_{date}.nc")
+
+
+def get_regime(date, steps=STEPS_6H):
+    """850mb u/v wind + 500mb height from GFS, for forecast-derived
+    regime clustering (available at forecast time, unlike observed
+    regimes - see README)."""
+    get_noaa(date, "gfs", steps, search=REGIME_SEARCH, out_name="regime",
+             skip_step0=())
 
 
 # ---------------- ECMWF IFS / AIFS (AWS mirror) ----------------
@@ -148,6 +166,7 @@ if __name__ == "__main__":
     get_noaa(test_date, "graphcast", STEPS_6H)
     get_ecmwf(test_date, "ifs", STEPS_3H)
     get_ecmwf(test_date, "aifs-single", STEPS_6H)
+    get_regime(test_date)
     get_imd("rain", 2025, 2025)
     # get_era5_month(2025, 7)   # enable after setting up ~/.cdsapirc
 

@@ -16,6 +16,7 @@ Physics-based NWP models and newer AI weather models each have different strengt
 | ECMWF AIFS | AI (on IFS init conditions) | AI counterpart to IFS |
 | ERA5 (CDS) | Reanalysis | Historical "ground truth" for training/validation |
 | IMD gridded | Observation | India-specific ground truth for scoring |
+| Regime (GFS 850mb wind + 500mb height) | Forecast-derived | Features for regime-conditioned blend weights (never from observed/verified fields - see Blending below) |
 
 ## Setup
 
@@ -45,9 +46,29 @@ python run_all.py --source noaa   --start 2025-03-01 --end 2026-09-20
 python run_all.py --source ecmwf  --start 2025-03-01 --end 2026-09-20
 python run_all.py --source era5   --start 2025-03-01 --end 2026-09-20
 python run_all.py --source imd    --start 2025-03-01 --end 2026-09-20
+python run_all.py --source regime --start 2025-03-01 --end 2026-09-20
 ```
 
+IMD is downloaded one year at a time: the current (incomplete) year has fewer
+records than a finished year, which breaks `imdlib`'s fixed-record binary
+parser if you ask for a mixed range in one call. The in-progress year will
+keep failing (logged, not fatal) until IMD publishes the finished grid, or
+until you swap in a real-time product (e.g. IMERG) for recent months.
+
 Raw data (`data/`) and logs (`logs/`) are gitignored — they're large (10-15 GB for the full run) and regenerable from the scripts above, so they aren't pushed to the repo. Run the smoke test to get a few sample `.nc` files locally before writing blending code against them.
+
+## Blending
+
+`blend/` has the tiered blend: `io.py` loads and aligns the 4 forecast
+models plus IMD onto a common grid/step axis (IFS/AIFS use `step`
+timedeltas, GFS/GraphCast/regime use integer `step_h` - `io.py` unifies
+this); `weights.py` has tier 1 (equal-weight) and tier 2 (inverse-error);
+`regimes.py` has tier 3 (k-means on forecast-derived 850mb wind + 500mb
+height - fit only once enough dates exist, never on observed regimes);
+`metrics.py` has RMSE, bias, ETS, and FSS. See
+`notebooks/01_smoke_test_blend.py` for a working end-to-end example on the
+smoke-test date. Tier 4 (meta-learner) and CRPS-based extreme calibration
+come after the bulk download gives enough history to train on.
 
 ## Fixed scope
 

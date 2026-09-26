@@ -40,6 +40,15 @@ def run(source, start, end):
                 except Exception:
                     log_fail(f"{model} {d}")
 
+    elif source == "regime":
+        for d in days:
+            if exists(f"regime_{d}.nc"):
+                continue
+            try:
+                dd.get_regime(d)
+            except Exception:
+                log_fail(f"regime {d}")
+
     elif source == "ecmwf":
         for d in days:
             for model, steps in [("ifs", dd.STEPS_3H), ("aifs-single", dd.STEPS_6H)]:
@@ -61,20 +70,25 @@ def run(source, start, end):
                 log_fail(f"era5 {p}")
 
     elif source == "imd":
+        # per-year, not a single range call: IMD's file for the current
+        # (incomplete) year has fewer records than a full year, which
+        # breaks imdlib's fixed-record binary parser if mixed with
+        # completed years.
         y0, y1 = int(start[:4]), int(end[:4])
         for var in ["rain", "tmax", "tmin"]:
-            if exists(f"imd_{var}_{y0}_{y1}.nc"):
-                continue
-            try:
-                dd.get_imd(var, y0, y1)
-            except Exception:
-                log_fail(f"imd {var}")
+            for yr in range(y0, y1 + 1):
+                if exists(f"imd_{var}_{yr}_{yr}.nc"):
+                    continue
+                try:
+                    dd.get_imd(var, yr, yr)
+                except Exception:
+                    log_fail(f"imd {var} {yr}")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", required=True,
-                    choices=["noaa", "ecmwf", "era5", "imd"])
+                    choices=["noaa", "ecmwf", "era5", "imd", "regime"])
     ap.add_argument("--start", default="2025-03-01")
     ap.add_argument("--end", default="2026-09-20")
     a = ap.parse_args()
