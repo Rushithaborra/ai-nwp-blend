@@ -91,7 +91,10 @@ def get_ecmwf(date, model="ifs", steps=STEPS_6H):
     parts = [crop(d) for d in cfgrib.open_datasets(tmp)]
     ds = xr.merge(parts, compat="override")
     if "tp" in ds:
-        ds["tp"] = ds["tp"] * 1000.0           # m -> mm
+        # IFS reports tp in metres (needs x1000 -> mm); AIFS reports
+        # kg/m^2, numerically already mm of water. Convert only the former.
+        if ds["tp"].attrs.get("GRIB_units") == "m":
+            ds["tp"] = ds["tp"] * 1000.0
         ds["tp"].attrs["units"] = "mm"
     save(ds, f"{model}_{date}.nc")
     for f in glob.glob(tmp + "*"):
